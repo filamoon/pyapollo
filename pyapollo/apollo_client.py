@@ -120,7 +120,11 @@ if __name__ == '__main__':
 
     client = ApolloClient('pycrawler')
     client.start()
-    v = raw_input('Press any key to quit...')
+    if sys.version_info[0] < 3:
+        v = raw_input('Press any key to quit...')
+    else:
+        v = input('Press any key to quit...')
+
     client.stop()
     while not client.stopped:
         pass
