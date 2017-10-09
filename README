@@ -1,0 +1,4 @@
+Python client for Ctrip's Apollo.
+携程开源的Apollo配置中心的Python客户端
+
+Tested with Python 2.7
