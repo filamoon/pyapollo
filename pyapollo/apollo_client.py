@@ -21,7 +21,7 @@ class ApolloClient(object):
         self._cache = {}
         self._notification_map = {'application': -1}
 
-    def get_value(self, key, default_val, namespace='application'):
+    def get_value(self, key, default_val, namespace='application', auto_fetch_on_cache_miss=False):
         if namespace not in self._cache:
             self._cache[namespace] = {}
             self._logger.info("Add namespace '%s' to local cache", namespace)
@@ -33,7 +33,10 @@ class ApolloClient(object):
         if key in self._cache[namespace]:
             return self._cache[namespace][key]
         else:
-            return self._cached_http_get(key, default_val, namespace)
+            if auto_fetch_on_cache_miss:
+                return self._cached_http_get(key, default_val, namespace)
+            else:
+                return default_val
 
     def _cached_http_get(self, key, default_val, namespace='application'):
         url = '{}/configfiles/json/{}/{}/{}'.format(self.config_server_url, self.appId, self.cluster, namespace)
