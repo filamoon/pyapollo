@@ -17,18 +17,17 @@ class ApolloClient(object):
         self.stopped = False
 
         self._stopping = False
-        self._logger = logging.getLogger(__name__)
         self._cache = {}
         self._notification_map = {'application': -1}
 
-    def get_value(self, key, default_val, namespace='application', auto_fetch_on_cache_miss=False):
+    def get_value(self, key, default_val=None, namespace='application', auto_fetch_on_cache_miss=False):
         if namespace not in self._cache:
             self._cache[namespace] = {}
-            self._logger.info("Add namespace '%s' to local cache", namespace)
+            logging.getLogger(__name__).info("Add namespace '%s' to local cache", namespace)
 
         if namespace not in self._notification_map:
             self._notification_map[namespace] = -1
-            self._logger.info("Add namespace '%s' to local notification map", namespace)
+            logging.getLogger(__name__).info("Add namespace '%s' to local notification map", namespace)
 
         if key in self._cache[namespace]:
             return self._cache[namespace][key]
@@ -44,7 +43,7 @@ class ApolloClient(object):
         if r.ok:
             data = r.json()
             self._cache[namespace] = data
-            self._logger.info('Updated local cache for namespace %s', namespace)
+            logging.getLogger(__name__).info('Updated local cache for namespace %s', namespace)
         else:
             data = self._cache[namespace]
 
@@ -59,28 +58,37 @@ class ApolloClient(object):
         if r.status_code == 200:
             data = r.json()
             self._cache[namespace] = data['configurations']
-            self._logger.info('Updated local cache for namespace %s release key %s: %s', namespace, data['releaseKey'],
-                              repr(self._cache[namespace]))
+            logging.getLogger(__name__).info('Updated local cache for namespace %s release key %s: %s',
+                                             namespace, data['releaseKey'],
+                                             repr(self._cache[namespace]))
 
     def _signal_handler(self, signal, frame):
-        self._logger.info('You pressed Ctrl+C!')
+        logging.getLogger(__name__).info('You pressed Ctrl+C!')
         self._stopping = True
 
-    def start(self):
-        import signal
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
-        signal.signal(signal.SIGABRT, self._signal_handler)
-        t = threading.Thread(target=self._listener)
-        t.start()
+    def start(self, use_eventlet=False):
+        if use_eventlet:
+            # First do a cached http fetch to populate the local cache, otherwise we may get racing problems since
+            # eventlet will yield upon network IO
+            if len(self._cache) == 0:
+                self._cached_http_get('foo', 'bar')   # just fetch 'foo' since we just want to populate the cache
+            import eventlet
+            eventlet.spawn(self._listener)
+        else:
+            import signal
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            signal.signal(signal.SIGABRT, self._signal_handler)
+            t = threading.Thread(target=self._listener)
+            t.start()
 
     def stop(self):
         self._stopping = True
-        self._logger.info("Stopping listener...")
+        logging.getLogger(__name__).info("Stopping listener...")
 
     def _listener(self):
         url = '{}/notifications/v2'.format(self.config_server_url)
-        self._logger.info('Entering listener loop...')
+        logging.getLogger(__name__).info('Entering listener loop...')
         while not self._stopping:
             notifications = []
             for key in self._notification_map:
@@ -96,11 +104,11 @@ class ApolloClient(object):
                 'notifications': json.dumps(notifications, ensure_ascii=False)
             }, timeout=self.timeout)
 
-            self._logger.info('Long polling returns %d: url=%s', r.status_code, r.request.url)
+            logging.getLogger(__name__).info('Long polling returns %d: url=%s', r.status_code, r.request.url)
 
             if r.status_code == 304:
                 # no change, loop
-                self._logger.debug('No change, loop...')
+                logging.getLogger(__name__).debug('No change, loop...')
                 continue
 
             if r.status_code == 200:
@@ -108,14 +116,14 @@ class ApolloClient(object):
                 for entry in data:
                     ns = entry['namespaceName']
                     nid = entry['notificationId']
-                    self._logger.info("%s has changes: notificationId=%d", ns, nid)
+                    logging.getLogger(__name__).info("%s has changes: notificationId=%d", ns, nid)
                     self._uncached_http_get(ns)
                     self._notification_map[ns] = nid
             else:
-                self._logger.warn('Sleep...')
+                logging.getLogger(__name__).warn('Sleep...')
                 time.sleep(self.timeout)
 
-        self._logger.info("Listener stopped!")
+        logging.getLogger(__name__).info("Listener stopped!")
         self.stopped = True
 
 
