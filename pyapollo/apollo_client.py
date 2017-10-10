@@ -62,7 +62,13 @@ class ApolloClient(object):
             self._logger.info('Updated local cache for namespace %s release key %s: %s', namespace, data['releaseKey'],
                               repr(self._cache[namespace]))
 
+    def _signal_handler(self, signal, frame):
+        self._logger.info('You pressed Ctrl+C!')
+        self._stopping = True
+
     def start(self):
+        import signal
+        signal.signal(signal.SIGINT, self._signal_handler)
         t = threading.Thread(target=self._listener)
         t.start()
 
