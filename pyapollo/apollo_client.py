@@ -20,10 +20,13 @@ class ApolloClient(object):
         self._cache = {}
         self._notification_map = {'application': -1}
 
+    # Main method
     def get_value(self, key, default_val=None, namespace='application', auto_fetch_on_cache_miss=False):
         if namespace not in self._cache:
             self._cache[namespace] = {}
             logging.getLogger(__name__).info("Add namespace '%s' to local cache", namespace)
+            # This is a new namespace, need to do a blocking fetch to populate the local cache
+            self._long_poll()
 
         if namespace not in self._notification_map:
             self._notification_map[namespace] = -1
@@ -36,6 +39,29 @@ class ApolloClient(object):
                 return self._cached_http_get(key, default_val, namespace)
             else:
                 return default_val
+
+    # Start the long polling loop. Two modes are provided:
+    # 1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop
+    # 2: eventlet mode (recommended), no need to call the .stop() since it is async
+    def start(self, use_eventlet=False):
+        if use_eventlet:
+            # First do a blocking long poll to populate the local cache, otherwise we may get racing problems since
+            # eventlet will yield upon network IO
+            if len(self._cache) == 0:
+                self._long_poll()
+            import eventlet
+            eventlet.spawn(self._listener)
+        else:
+            import signal
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            signal.signal(signal.SIGABRT, self._signal_handler)
+            t = threading.Thread(target=self._listener)
+            t.start()
+
+    def stop(self):
+        self._stopping = True
+        logging.getLogger(__name__).info("Stopping listener...")
 
     def _cached_http_get(self, key, default_val, namespace='application'):
         url = '{}/configfiles/json/{}/{}/{}'.format(self.config_server_url, self.appId, self.cluster, namespace)
@@ -65,26 +91,6 @@ class ApolloClient(object):
     def _signal_handler(self, signal, frame):
         logging.getLogger(__name__).info('You pressed Ctrl+C!')
         self._stopping = True
-
-    def start(self, use_eventlet=False):
-        if use_eventlet:
-            # First do a blocking long poll to populate the local cache, otherwise we may get racing problems since
-            # eventlet will yield upon network IO
-            if len(self._cache) == 0:
-                self._long_poll()
-            import eventlet
-            eventlet.spawn(self._listener)
-        else:
-            import signal
-            signal.signal(signal.SIGINT, self._signal_handler)
-            signal.signal(signal.SIGTERM, self._signal_handler)
-            signal.signal(signal.SIGABRT, self._signal_handler)
-            t = threading.Thread(target=self._listener)
-            t.start()
-
-    def stop(self):
-        self._stopping = True
-        logging.getLogger(__name__).info("Stopping listener...")
 
     def _long_poll(self):
         url = '{}/notifications/v2'.format(self.config_server_url)
