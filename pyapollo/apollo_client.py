@@ -68,10 +68,10 @@ class ApolloClient(object):
 
     def start(self, use_eventlet=False):
         if use_eventlet:
-            # First do a cached http fetch to populate the local cache, otherwise we may get racing problems since
+            # First do a blocking long poll to populate the local cache, otherwise we may get racing problems since
             # eventlet will yield upon network IO
             if len(self._cache) == 0:
-                self._cached_http_get('foo', 'bar')   # just fetch 'foo' since we just want to populate the cache
+                self._long_poll()
             import eventlet
             eventlet.spawn(self._listener)
         else:
@@ -86,42 +86,45 @@ class ApolloClient(object):
         self._stopping = True
         logging.getLogger(__name__).info("Stopping listener...")
 
-    def _listener(self):
+    def _long_poll(self):
         url = '{}/notifications/v2'.format(self.config_server_url)
+        notifications = []
+        for key in self._notification_map:
+            notification_id = self._notification_map[key]
+            notifications.append({
+                'namespaceName': key,
+                'notificationId': notification_id
+            })
+
+        r = requests.get(url=url, params={
+            'appId': self.appId,
+            'cluster': self.cluster,
+            'notifications': json.dumps(notifications, ensure_ascii=False)
+        }, timeout=self.timeout)
+
+        logging.getLogger(__name__).debug('Long polling returns %d: url=%s', r.status_code, r.request.url)
+
+        if r.status_code == 304:
+            # no change, loop
+            logging.getLogger(__name__).debug('No change, loop...')
+            return
+
+        if r.status_code == 200:
+            data = r.json()
+            for entry in data:
+                ns = entry['namespaceName']
+                nid = entry['notificationId']
+                logging.getLogger(__name__).info("%s has changes: notificationId=%d", ns, nid)
+                self._uncached_http_get(ns)
+                self._notification_map[ns] = nid
+        else:
+            logging.getLogger(__name__).warn('Sleep...')
+            time.sleep(self.timeout)
+
+    def _listener(self):
         logging.getLogger(__name__).info('Entering listener loop...')
         while not self._stopping:
-            notifications = []
-            for key in self._notification_map:
-                notification_id = self._notification_map[key]
-                notifications.append({
-                    'namespaceName': key,
-                    'notificationId': notification_id
-                })
-
-            r = requests.get(url=url, params={
-                'appId': self.appId,
-                'cluster': self.cluster,
-                'notifications': json.dumps(notifications, ensure_ascii=False)
-            }, timeout=self.timeout)
-
-            logging.getLogger(__name__).info('Long polling returns %d: url=%s', r.status_code, r.request.url)
-
-            if r.status_code == 304:
-                # no change, loop
-                logging.getLogger(__name__).debug('No change, loop...')
-                continue
-
-            if r.status_code == 200:
-                data = r.json()
-                for entry in data:
-                    ns = entry['namespaceName']
-                    nid = entry['notificationId']
-                    logging.getLogger(__name__).info("%s has changes: notificationId=%d", ns, nid)
-                    self._uncached_http_get(ns)
-                    self._notification_map[ns] = nid
-            else:
-                logging.getLogger(__name__).warn('Sleep...')
-                time.sleep(self.timeout)
+            self._long_poll()
 
         logging.getLogger(__name__).info("Listener stopped!")
         self.stopped = True
