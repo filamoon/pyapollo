@@ -24,7 +24,7 @@ setup(
         'Programming Language :: Python :: 2.7',
     ],
     include_package_data=True,
-    package_data={'': ['*']},
+    package_data={'': ['*.py','*.pyc']},
     zip_safe=False,
     platforms='any',
 
