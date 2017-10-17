@@ -44,11 +44,10 @@ class ApolloClient(object):
     # 1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop
     # 2: eventlet mode (recommended), no need to call the .stop() since it is async
     def start(self, use_eventlet=False):
+        # First do a blocking long poll to populate the local cache, otherwise we may get racing problems
+        if len(self._cache) == 0:
+            self._long_poll()
         if use_eventlet:
-            # First do a blocking long poll to populate the local cache, otherwise we may get racing problems since
-            # eventlet will yield upon network IO
-            if len(self._cache) == 0:
-                self._long_poll()
             import eventlet
             eventlet.spawn(self._listener)
         else:
