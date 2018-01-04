@@ -15,9 +15,9 @@ python setup.py install
 
 # Features
 * 实时同步配置
+* 灰度配置
 
 # Missing Features
-* 灰度配置
 * 客户端容灾
 
 # Usage
