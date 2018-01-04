@@ -9,16 +9,30 @@ import requests
 
 
 class ApolloClient(object):
-    def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35):
+    def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None):
         self.config_server_url = config_server_url
         self.appId = app_id
         self.cluster = cluster
         self.timeout = timeout
         self.stopped = False
+        self.init_ip(ip)
 
         self._stopping = False
         self._cache = {}
         self._notification_map = {'application': -1}
+
+    def init_ip(self, ip):
+        if ip:
+            self.ip = ip
+        else:
+            import socket
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(('8.8.8.8', 53))
+                ip = s.getsockname()[0]
+            finally:
+                s.close()
+            self.ip = ip
 
     # Main method
     def get_value(self, key, default_val=None, namespace='application', auto_fetch_on_cache_miss=False):
@@ -63,7 +77,7 @@ class ApolloClient(object):
         logging.getLogger(__name__).info("Stopping listener...")
 
     def _cached_http_get(self, key, default_val, namespace='application'):
-        url = '{}/configfiles/json/{}/{}/{}'.format(self.config_server_url, self.appId, self.cluster, namespace)
+        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
         r = requests.get(url)
         if r.ok:
             data = r.json()
@@ -78,7 +92,7 @@ class ApolloClient(object):
             return default_val
 
     def _uncached_http_get(self, namespace='application'):
-        url = '{}/configs/{}/{}/{}'.format(self.config_server_url, self.appId, self.cluster, namespace)
+        url = '{}/configs/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
         r = requests.get(url)
         if r.status_code == 200:
             data = r.json()
