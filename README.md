@@ -25,7 +25,7 @@ python setup.py install
 - 启动客户端长连接监听
 
 ``` python
-client = ApolloClient(appId=<appId>, cluster=<clusterName>, config_server_url=<configServerUrl>)
+client = ApolloClient(app_id=<appId>, cluster=<clusterName>, config_server_url=<configServerUrl>)
 client.start()
 ```
 
