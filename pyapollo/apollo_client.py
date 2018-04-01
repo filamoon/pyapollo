@@ -38,21 +38,20 @@ class ApolloClient(object):
     def get_value(self, key, default_val=None, namespace='application', auto_fetch_on_cache_miss=False):
         if namespace not in self._notification_map:
             self._notification_map[namespace] = -1
+            self._long_poll()
             logging.getLogger(__name__).info("Add namespace '%s' to local notification map", namespace)
 
         if namespace not in self._cache:
             self._cache[namespace] = {}
+            if auto_fetch_on_cache_miss:
+                return self._cached_http_get(key, default_val, namespace)
             logging.getLogger(__name__).info("Add namespace '%s' to local cache", namespace)
             # This is a new namespace, need to do a blocking fetch to populate the local cache
-            self._long_poll()
 
         if key in self._cache[namespace]:
             return self._cache[namespace][key]
-        else:
-            if auto_fetch_on_cache_miss:
-                return self._cached_http_get(key, default_val, namespace)
-            else:
-                return default_val
+
+        return default_val
 
     # Start the long polling loop. Two modes are provided:
     # 1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop
