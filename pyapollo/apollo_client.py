@@ -57,7 +57,7 @@ class ApolloClient(object):
     # Start the long polling loop. Two modes are provided:
     # 1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop
     # 2: eventlet mode (recommended), no need to call the .stop() since it is async
-    def start(self, use_eventlet=False, eventlet_monkey_patch=False):
+    def start(self, use_eventlet=False, eventlet_monkey_patch=False, catch_signals=True):
         # First do a blocking long poll to populate the local cache, otherwise we may get racing problems
         if len(self._cache) == 0:
             self._long_poll()
@@ -67,10 +67,11 @@ class ApolloClient(object):
                 eventlet.monkey_patch()
             eventlet.spawn(self._listener)
         else:
-            import signal
-            signal.signal(signal.SIGINT, self._signal_handler)
-            signal.signal(signal.SIGTERM, self._signal_handler)
-            signal.signal(signal.SIGABRT, self._signal_handler)
+            if catch_signals:
+                import signal
+                signal.signal(signal.SIGINT, self._signal_handler)
+                signal.signal(signal.SIGTERM, self._signal_handler)
+                signal.signal(signal.SIGABRT, self._signal_handler)
             t = threading.Thread(target=self._listener)
             t.start()
 
