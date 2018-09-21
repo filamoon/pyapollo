@@ -59,8 +59,8 @@ class ApolloClient(object):
     def _save_conf_to_disk(self, namespace, data):
         """ 本地磁盘容错 """
         try:
-            with open('%s/%s' % (self.conf_dir, namespace), 'w+') as f:
-                f.write(data)
+            with open('%s/%s' % (self.conf_dir, namespace), 'wb+') as f:
+                f.write(data.encode('utf-8'))
         except Exception as e:
             logging.getLogger(__name__).error('save conf to disk fail: %s' % e)
 
