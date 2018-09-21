@@ -112,6 +112,7 @@ class ApolloClient(object):
         # 启用容错模式，尝试从本地加载配置
         if _conf_data is None and auto_failover:
             _conf_data = self._get_conf_from_disk(namespace)
+            logging.getLogger(__name__).warning('enable auto_failover, load %s from disk.' % namespace)
 
         if _conf_data is None:
             raise Exception('get conf file fail, exit.')
