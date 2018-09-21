@@ -59,7 +59,7 @@ class ApolloClient(object):
     def _save_conf_to_disk(self, namespace, data):
         """ 本地磁盘容错 """
         try:
-            with open(self.conf_dir + namespace, 'w+') as f:
+            with open('%s/%s' % (self.conf_dir, namespace), 'w+') as f:
                 f.write(data)
         except Exception as e:
             logging.getLogger(__name__).error('save conf to disk fail: %s' % e)
@@ -67,7 +67,7 @@ class ApolloClient(object):
     def _get_conf_from_disk(self, namespace):
         """ 从磁盘获取配置 """
         try:
-            with open(self.conf_dir + namespace) as f:
+            with open('%s/%s' % (self.conf_dir, namespace)) as f:
                 return f.read()
         except Exception as e:
             logging.getLogger(__name__).error('get conf from disk fail: %s' % e)
@@ -101,7 +101,7 @@ class ApolloClient(object):
             else:
                 time.sleep(1)
                 _try_cnt += 1
-                logging.getLogger(__name__).warning('get config file fail, try again %s' % _try_cnt)
+                logging.getLogger(__name__).warning('get config file fail, status_code=%s, try again=%s' % (resp.status_code, _try_cnt))
                 continue
 
         # 启用容错模式，尝试从本地加载配置
