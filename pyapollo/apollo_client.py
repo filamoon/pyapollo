@@ -97,7 +97,7 @@ class ApolloClient(object):
                 body = resp.json()
                 _conf_data = body.get('content', None) # 文件内容
                 if auto_failover and _conf_data is not None:
-                    self._save_conf_to_disk(self, namespace, _conf_data)
+                    self._save_conf_to_disk(namespace, _conf_data)
             else:
                 time.sleep(1)
                 _try_cnt += 1
@@ -106,7 +106,7 @@ class ApolloClient(object):
 
         # 启用容错模式，尝试从本地加载配置
         if _conf_data is None and auto_failover:
-            _conf_data = self._get_conf_from_disk(self, namespace)
+            _conf_data = self._get_conf_from_disk(namespace)
 
         if _conf_data is None:
             raise Exception('get conf file fail, exit.')
