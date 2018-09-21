@@ -92,17 +92,21 @@ class ApolloClient(object):
         _try_cnt = 0 
         _conf_data = None      
         while _try_cnt < 3:
-            resp = requests.get(url)
-            if resp.ok:
+            try:
+                resp = requests.get(url)
+                if not resp.ok:
+                    raise Exception('status_code=%s' % resp.status_code)
+                
                 body = resp.json()
                 _conf_data = body.get('content', None) # 文件内容
                 if auto_failover and _conf_data is not None:
                     self._save_conf_to_disk(namespace, _conf_data)
-                    break
-            else:
+
+                break
+            except Exception as e:
                 time.sleep(1)
                 _try_cnt += 1
-                logging.getLogger(__name__).warning('get config file fail, status_code=%s, try again=%s' % (resp.status_code, _try_cnt))
+                logging.getLogger(__name__).warning('get config file fail: %s, try again=%s' % (e, _try_cnt))
                 continue
 
         # 启用容错模式，尝试从本地加载配置
