@@ -99,6 +99,8 @@ class ApolloClient(object):
                 
                 body = resp.json()
                 _conf_data = body.get('content', None) # 文件内容
+
+                # 如果启用自动容错机制，则将配置写入磁盘
                 if auto_failover and _conf_data is not None:
                     self._save_conf_to_disk(namespace, _conf_data)
 
@@ -112,10 +114,10 @@ class ApolloClient(object):
         # 启用容错模式，尝试从本地加载配置
         if _conf_data is None and auto_failover:
             _conf_data = self._get_conf_from_disk(namespace)
-            logging.getLogger(__name__).warning('enable auto_failover, load %s from disk.' % namespace)
+            logging.getLogger(__name__).warning('auto failover enabled, load %s from disk.' % namespace)
 
         if _conf_data is None:
-            raise Exception('get conf file fail, exit.')
+            return None
 
         return self._loads(namespace, _conf_data)
 
