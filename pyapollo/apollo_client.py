@@ -98,6 +98,7 @@ class ApolloClient(object):
                 _conf_data = body.get('content', None) # 文件内容
                 if auto_failover and _conf_data is not None:
                     self._save_conf_to_disk(namespace, _conf_data)
+                    break
             else:
                 time.sleep(1)
                 _try_cnt += 1
