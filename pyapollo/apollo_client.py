@@ -18,6 +18,8 @@ class ApolloClient(object):
         self.stopped = False
         self.init_ip(ip)
         self.conf_dir = conf_dir or os.getcwd()
+        if not os.path.exists(self.conf_dir):
+            os.makedirs(self.conf_dir)
 
         self._stopping = False
         self._cache = {}
