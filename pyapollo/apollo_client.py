@@ -94,6 +94,10 @@ class ApolloClient(object):
         while _try_cnt < 3:
             try:
                 resp = requests.get(url)
+                if resp.status_code == 404:
+                    # 如果配置文件不存在，直接退出
+                    break
+                    
                 if not resp.ok:
                     raise Exception('status_code=%s' % resp.status_code)
                 
