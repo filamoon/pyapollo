@@ -10,8 +10,15 @@ import requests
 
 LOGGER = logging.getLogger(__name__)
 
+
 class ApolloClient(object):
-    def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None, conf_dir=None):
+    def __init__(self,
+                 app_id,
+                 cluster='default',
+                 config_server_url='http://localhost:8080',
+                 timeout=35,
+                 ip=None,
+                 conf_dir=None):
         self.config_server_url = config_server_url
         self.appId = app_id
         self.cluster = cluster
@@ -40,10 +47,15 @@ class ApolloClient(object):
             self.ip = ip
 
     # Main method
-    def get_value(self, key, default_val=None, namespace='application', auto_fetch_on_cache_miss=False):
+    def get_value(self,
+                  key,
+                  default_val=None,
+                  namespace='application',
+                  auto_fetch_on_cache_miss=False):
         if namespace not in self._notification_map:
             self._notification_map[namespace] = -1
-            LOGGER.info("Add namespace '%s' to local notification map", namespace)
+            LOGGER.info("Add namespace '%s' to local notification map",
+                        namespace)
 
         if namespace not in self._cache:
             self._cache[namespace] = {}
@@ -80,7 +92,7 @@ class ApolloClient(object):
         _, ext = os.path.splitext(namespace)
         if ext == '.yaml':
             import yaml
-            return yaml.load(conf_data) 
+            return yaml.load(conf_data)
         elif ext == '.json':
             import json
             return json.loads(conf_data)
@@ -91,19 +103,22 @@ class ApolloClient(object):
         """ 获取带缓存的接口获取配置数据， 默认开启容错 auto_failover=True
             默认重试3次，每次sleep 1s
         """
-        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
-        _try_cnt = 0 
-        _conf_data = None      
+        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(
+            self.config_server_url, self.appId, self.cluster, namespace,
+            self.ip)
+        _try_cnt = 0
+        _conf_data = None
         while _try_cnt < 3:
             try:
                 resp = requests.get(url)
-                # 如果请求接口异常，直接退出     
+                # 如果请求接口异常，直接退出
                 if not resp.ok:
-                    LOGGER.error('status_code=%s, content=%s' % (resp.status_code, resp._content))
+                    LOGGER.error('status_code=%s, content=%s' %
+                                 (resp.status_code, resp._content))
                     break
 
                 body = resp.json()
-                _conf_data = body.get('content', None) # 文件内容
+                _conf_data = body.get('content', None)  # 文件内容
 
                 # 如果启用自动容错机制，则将配置写入磁盘
                 if auto_failover and _conf_data is not None:
@@ -113,12 +128,14 @@ class ApolloClient(object):
             except Exception as e:
                 time.sleep(1)
                 _try_cnt += 1
-                LOGGER.warning('get config file fail: %s, try again=%s' % (e, _try_cnt))
+                LOGGER.warning(
+                    'get config file fail: %s, try again=%s' % (e, _try_cnt))
                 continue
 
         # 启用容错模式，尝试从本地加载配置
         if _conf_data is None and auto_failover:
-            LOGGER.warning('auto failover enabled, load %s from disk.' % namespace)
+            LOGGER.warning(
+                'auto failover enabled, load %s from disk.' % namespace)
             _conf_data = self._get_conf_from_disk(namespace)
 
         if _conf_data is None:
@@ -126,11 +143,13 @@ class ApolloClient(object):
 
         return self._loads(namespace, _conf_data)
 
-
     # Start the long polling loop. Two modes are provided:
     # 1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop
     # 2: eventlet mode (recommended), no need to call the .stop() since it is async
-    def start(self, use_eventlet=False, eventlet_monkey_patch=False, catch_signals=True):
+    def start(self,
+              use_eventlet=False,
+              eventlet_monkey_patch=False,
+              catch_signals=True):
         # First do a blocking long poll to populate the local cache, otherwise we may get racing problems
         if len(self._cache) == 0:
             self._long_poll()
@@ -153,7 +172,9 @@ class ApolloClient(object):
         LOGGER.info("Stopping listener...")
 
     def _cached_http_get(self, key, default_val, namespace='application'):
-        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
+        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(
+            self.config_server_url, self.appId, self.cluster, namespace,
+            self.ip)
         r = requests.get(url)
         if r.ok:
             data = r.json()
@@ -168,14 +189,16 @@ class ApolloClient(object):
             return default_val
 
     def _uncached_http_get(self, namespace='application'):
-        url = '{}/configs/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
+        url = '{}/configs/{}/{}/{}?ip={}'.format(self.config_server_url,
+                                                 self.appId, self.cluster,
+                                                 namespace, self.ip)
         r = requests.get(url)
         if r.status_code == 200:
             data = r.json()
             self._cache[namespace] = data['configurations']
-            LOGGER.info('Updated local cache for namespace %s release key %s: %s',
-                                             namespace, data['releaseKey'],
-                                             repr(self._cache[namespace]))
+            LOGGER.info(
+                'Updated local cache for namespace %s release key %s: %s',
+                namespace, data['releaseKey'], repr(self._cache[namespace]))
 
     def _signal_handler(self, signal, frame):
         LOGGER.info('You pressed Ctrl+C!')
@@ -191,13 +214,17 @@ class ApolloClient(object):
                 'notificationId': notification_id
             })
 
-        r = requests.get(url=url, params={
-            'appId': self.appId,
-            'cluster': self.cluster,
-            'notifications': json.dumps(notifications, ensure_ascii=False)
-        }, timeout=self.timeout)
+        r = requests.get(
+            url=url,
+            params={
+                'appId': self.appId,
+                'cluster': self.cluster,
+                'notifications': json.dumps(notifications, ensure_ascii=False)
+            },
+            timeout=self.timeout)
 
-        LOGGER.debug('Long polling returns %d: url=%s', r.status_code, r.request.url)
+        LOGGER.debug('Long polling returns %d: url=%s', r.status_code,
+                     r.request.url)
 
         if r.status_code == 304:
             # no change, loop
@@ -231,7 +258,8 @@ if __name__ == '__main__':
 
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
     root.addHandler(ch)
 
