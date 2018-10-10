@@ -8,6 +8,7 @@ import os
 
 import requests
 
+LOGGER = logging.getLogger(__name__)
 
 class ApolloClient(object):
     def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None, conf_dir=None):
@@ -42,11 +43,11 @@ class ApolloClient(object):
     def get_value(self, key, default_val=None, namespace='application', auto_fetch_on_cache_miss=False):
         if namespace not in self._notification_map:
             self._notification_map[namespace] = -1
-            logging.getLogger(__name__).info("Add namespace '%s' to local notification map", namespace)
+            LOGGER.info("Add namespace '%s' to local notification map", namespace)
 
         if namespace not in self._cache:
             self._cache[namespace] = {}
-            logging.getLogger(__name__).info("Add namespace '%s' to local cache", namespace)
+            LOGGER.info("Add namespace '%s' to local cache", namespace)
             # This is a new namespace, need to do a blocking fetch to populate the local cache
             self._long_poll()
 
@@ -64,7 +65,7 @@ class ApolloClient(object):
             with open('%s/%s' % (self.conf_dir, namespace), 'wb+') as f:
                 f.write(data.encode('utf-8'))
         except Exception as e:
-            logging.getLogger(__name__).error('save conf to disk fail: %s' % e)
+            LOGGER.error('save conf to disk fail: %s' % e)
 
     def _get_conf_from_disk(self, namespace):
         """ 从磁盘获取配置 """
@@ -72,7 +73,7 @@ class ApolloClient(object):
             with open('%s/%s' % (self.conf_dir, namespace)) as f:
                 return f.read()
         except Exception as e:
-            logging.getLogger(__name__).error('get conf from disk fail: %s' % e)
+            LOGGER.error('get conf from disk fail: %s' % e)
 
     def _loads(self, namespace, conf_data):
         """ 反序列化配置数据 """
@@ -96,13 +97,11 @@ class ApolloClient(object):
         while _try_cnt < 3:
             try:
                 resp = requests.get(url)
-                if resp.status_code == 404:
-                    # 如果配置文件不存在，直接退出
-                    break
-                    
+                # 如果请求接口异常，直接退出     
                 if not resp.ok:
-                    raise Exception('status_code=%s' % resp.status_code)
-                
+                    LOGGER.error('status_code=%s, content=%s' % (resp.status_code, resp._content))
+                    break
+
                 body = resp.json()
                 _conf_data = body.get('content', None) # 文件内容
 
@@ -114,12 +113,12 @@ class ApolloClient(object):
             except Exception as e:
                 time.sleep(1)
                 _try_cnt += 1
-                logging.getLogger(__name__).warning('get config file fail: %s, try again=%s' % (e, _try_cnt))
+                LOGGER.warning('get config file fail: %s, try again=%s' % (e, _try_cnt))
                 continue
 
         # 启用容错模式，尝试从本地加载配置
         if _conf_data is None and auto_failover:
-            logging.getLogger(__name__).warning('auto failover enabled, load %s from disk.' % namespace)
+            LOGGER.warning('auto failover enabled, load %s from disk.' % namespace)
             _conf_data = self._get_conf_from_disk(namespace)
 
         if _conf_data is None:
@@ -151,7 +150,7 @@ class ApolloClient(object):
 
     def stop(self):
         self._stopping = True
-        logging.getLogger(__name__).info("Stopping listener...")
+        LOGGER.info("Stopping listener...")
 
     def _cached_http_get(self, key, default_val, namespace='application'):
         url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
@@ -159,7 +158,7 @@ class ApolloClient(object):
         if r.ok:
             data = r.json()
             self._cache[namespace] = data
-            logging.getLogger(__name__).info('Updated local cache for namespace %s', namespace)
+            LOGGER.info('Updated local cache for namespace %s', namespace)
         else:
             data = self._cache[namespace]
 
@@ -174,12 +173,12 @@ class ApolloClient(object):
         if r.status_code == 200:
             data = r.json()
             self._cache[namespace] = data['configurations']
-            logging.getLogger(__name__).info('Updated local cache for namespace %s release key %s: %s',
+            LOGGER.info('Updated local cache for namespace %s release key %s: %s',
                                              namespace, data['releaseKey'],
                                              repr(self._cache[namespace]))
 
     def _signal_handler(self, signal, frame):
-        logging.getLogger(__name__).info('You pressed Ctrl+C!')
+        LOGGER.info('You pressed Ctrl+C!')
         self._stopping = True
 
     def _long_poll(self):
@@ -198,11 +197,11 @@ class ApolloClient(object):
             'notifications': json.dumps(notifications, ensure_ascii=False)
         }, timeout=self.timeout)
 
-        logging.getLogger(__name__).debug('Long polling returns %d: url=%s', r.status_code, r.request.url)
+        LOGGER.debug('Long polling returns %d: url=%s', r.status_code, r.request.url)
 
         if r.status_code == 304:
             # no change, loop
-            logging.getLogger(__name__).debug('No change, loop...')
+            LOGGER.debug('No change, loop...')
             return
 
         if r.status_code == 200:
@@ -210,19 +209,19 @@ class ApolloClient(object):
             for entry in data:
                 ns = entry['namespaceName']
                 nid = entry['notificationId']
-                logging.getLogger(__name__).info("%s has changes: notificationId=%d", ns, nid)
+                LOGGER.info("%s has changes: notificationId=%d", ns, nid)
                 self._uncached_http_get(ns)
                 self._notification_map[ns] = nid
         else:
-            logging.getLogger(__name__).warn('Sleep...')
+            LOGGER.warn('Sleep...')
             time.sleep(self.timeout)
 
     def _listener(self):
-        logging.getLogger(__name__).info('Entering listener loop...')
+        LOGGER.info('Entering listener loop...')
         while not self._stopping:
             self._long_poll()
 
-        logging.getLogger(__name__).info("Listener stopped!")
+        LOGGER.info("Listener stopped!")
         self.stopped = True
 
 
