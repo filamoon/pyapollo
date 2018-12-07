@@ -25,6 +25,8 @@ class ApolloClient(object):
         self.timeout = timeout
         self.stopped = False
         self.init_ip(ip)
+
+        # 初始化本地配置目录
         self.conf_dir = conf_dir or os.getcwd()
         if not os.path.exists(self.conf_dir):
             os.makedirs(self.conf_dir)
@@ -71,6 +73,25 @@ class ApolloClient(object):
             else:
                 return default_val
 
+    def get_conf_file(self, namespace='app.yaml', auto_failover=True):
+        """ 获取指定namespace的配置文件，非properities格式 """
+
+        # 非properities格式的配置(yaml|json)，存储在content字段中
+        value = self.get_value(
+            'content',
+            default_val=self._get_conf_from_disk(namespace)
+            if auto_failover else None,
+            namespace=namespace,
+            auto_fetch_on_cache_miss=True)
+
+        if value is None:
+            return None
+
+        if auto_failover:
+            self._save_conf_to_disk(namespace, value)
+
+        return self._loads(namespace, value)
+
     def _save_conf_to_disk(self, namespace, data):
         """ 本地磁盘容错 """
         try:
@@ -87,61 +108,18 @@ class ApolloClient(object):
         except Exception as e:
             LOGGER.error('get conf from disk fail: %s' % e)
 
-    def _loads(self, namespace, conf_data):
+    def _loads(self, namespace, value):
         """ 反序列化配置数据 """
         _, ext = os.path.splitext(namespace)
         if ext == '.yaml':
             import yaml
-            return yaml.load(conf_data)
+            return yaml.load(value)
         elif ext == '.json':
             import json
-            return json.loads(conf_data)
+            return json.loads(value)
         else:
-            raise Exception('unsupport configuration file extension')
-
-    def get_conf_file(self, namespace='app.yaml', auto_failover=True):
-        """ 获取带缓存的接口获取配置数据， 默认开启容错 auto_failover=True
-            默认重试3次，每次sleep 1s
-        """
-        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(
-            self.config_server_url, self.appId, self.cluster, namespace,
-            self.ip)
-        _try_cnt = 0
-        _conf_data = None
-        while _try_cnt < 3:
-            try:
-                resp = requests.get(url)
-                # 如果请求接口异常，直接退出
-                if not resp.ok:
-                    LOGGER.error('status_code=%s, content=%s' %
-                                 (resp.status_code, resp._content))
-                    break
-
-                body = resp.json()
-                _conf_data = body.get('content', None)  # 文件内容
-
-                # 如果启用自动容错机制，则将配置写入磁盘
-                if auto_failover and _conf_data is not None:
-                    self._save_conf_to_disk(namespace, _conf_data)
-
-                break
-            except Exception as e:
-                time.sleep(1)
-                _try_cnt += 1
-                LOGGER.warning(
-                    'get config file fail: %s, try again=%s' % (e, _try_cnt))
-                continue
-
-        # 启用容错模式，尝试从本地加载配置
-        if _conf_data is None and auto_failover:
-            LOGGER.warning(
-                'auto failover enabled, load %s from disk.' % namespace)
-            _conf_data = self._get_conf_from_disk(namespace)
-
-        if _conf_data is None:
-            return None
-
-        return self._loads(namespace, _conf_data)
+            # 其它格式，直接返回原始值
+            return value
 
     # Start the long polling loop. Two modes are provided:
     # 1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop

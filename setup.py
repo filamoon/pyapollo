@@ -14,7 +14,8 @@ setup(
     version=pyapollo.__version__,
     packages=find_packages(),
     install_requires=[
-        'requests'
+        'requests==2.20.1',
+        'eventlet==0.24.1'
     ],
     url='https://code.aliyun.com/cashbusrisk/pyapollo',
     author=pyapollo.__author__,
