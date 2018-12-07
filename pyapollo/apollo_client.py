@@ -17,12 +17,14 @@ class ApolloClient(object):
                  cluster='default',
                  config_server_url='http://localhost:8080',
                  timeout=35,
+                 on_change=None,
                  ip=None,
                  conf_dir=None):
         self.config_server_url = config_server_url
         self.appId = app_id
         self.cluster = cluster
         self.timeout = timeout
+        self.on_change_cb = on_change
         self.stopped = False
         self.init_ip(ip)
 
@@ -217,6 +219,9 @@ class ApolloClient(object):
                 LOGGER.info("%s has changes: notificationId=%d", ns, nid)
                 self._uncached_http_get(ns)
                 self._notification_map[ns] = nid
+
+                if self.on_change_cb is not None:
+                    self.on_change_cb(ns)
         else:
             LOGGER.warn('Sleep...')
             time.sleep(self.timeout)
