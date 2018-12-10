@@ -222,7 +222,7 @@ class ApolloClient(object):
 
                 if self.on_change_cb is not None and self._cache.get(
                         ns) is not None:
-                    self.on_change_cb(ns, self._cache.get(ns))
+                    self.on_change_cb(ns, self._loads(ns, self._cache.get(ns)))
         else:
             LOGGER.warn('Sleep...')
             time.sleep(self.timeout)
