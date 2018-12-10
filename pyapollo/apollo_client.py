@@ -201,14 +201,11 @@ class ApolloClient(object):
                 'cluster': self.cluster,
                 'notifications': json.dumps(notifications, ensure_ascii=False)
             },
-            timeout=self.timeout)
-
-        LOGGER.debug('Long polling returns %d: url=%s', r.status_code,
-                     r.request.url)
+            timeout=65)
 
         if r.status_code == 304:
             # no change, loop
-            LOGGER.debug('No change, loop...')
+            LOGGER.info('No change, loop...')
             return
 
         if r.status_code == 200:
@@ -223,13 +220,17 @@ class ApolloClient(object):
                 if self.on_change_cb is not None:
                     self.on_change_cb(ns, self.get_conf_file(ns))
         else:
-            LOGGER.warn('Sleep...')
+            LOGGER.warning('apollo response error: code={}, content={}'.format(
+                r.status_code, r._content))
             time.sleep(self.timeout)
 
     def _listener(self):
         LOGGER.info('Entering listener loop...')
         while not self._stopping:
-            self._long_poll()
+            try:
+                self._long_poll()
+            except Exception as e:
+                LOGGER.exception(e)
 
         LOGGER.info("Listener stopped!")
         self.stopped = True
