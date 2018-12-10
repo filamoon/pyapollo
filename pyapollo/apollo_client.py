@@ -220,10 +220,8 @@ class ApolloClient(object):
                 self._uncached_http_get(ns)
                 self._notification_map[ns] = nid
 
-                if self.on_change_cb is not None and self._cache.get(
-                        ns) is not None:
-                    LOGGER.info('cb for ns={}, content={}'.format(ns, self._cache.get(ns)))
-                    self.on_change_cb(ns, self._loads(ns, self._cache.get(ns)))
+                if self.on_change_cb is not None:
+                    self.on_change_cb(ns, self.get_conf_file(ns))
         else:
             LOGGER.warn('Sleep...')
             time.sleep(self.timeout)
