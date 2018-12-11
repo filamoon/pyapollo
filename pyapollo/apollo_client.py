@@ -220,9 +220,9 @@ class ApolloClient(object):
                 if self.on_change_cb is not None:
                     self.on_change_cb(ns, self.get_conf_file(ns))
         else:
-            LOGGER.warning('apollo response error: code={}, content={}'.format(
-                r.status_code, r._content))
-            time.sleep(self.timeout)
+            raise Exception(
+                'apollo response error: code={}, content={}'.format(
+                    r.status_code, r._content))
 
     def _listener(self):
         LOGGER.info('Entering listener loop...')
@@ -231,6 +231,7 @@ class ApolloClient(object):
                 self._long_poll()
             except Exception as e:
                 LOGGER.exception(e)
+                time.sleep(3)
 
         LOGGER.info("Listener stopped!")
         self.stopped = True
