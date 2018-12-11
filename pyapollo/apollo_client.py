@@ -16,7 +16,7 @@ class ApolloClient(object):
                  app_id,
                  cluster='default',
                  config_server_url='http://localhost:8080',
-                 timeout=35,
+                 timeout=65,
                  on_change=None,
                  ip=None,
                  conf_dir=None):
@@ -201,7 +201,7 @@ class ApolloClient(object):
                 'cluster': self.cluster,
                 'notifications': json.dumps(notifications, ensure_ascii=False)
             },
-            timeout=65)
+            timeout=self.timeout)
 
         if r.status_code == 304:
             # no change, loop
