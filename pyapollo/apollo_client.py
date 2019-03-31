@@ -20,7 +20,8 @@ class ApolloClient(object):
                  on_change=None,
                  ip=None,
                  auto_failover=True,
-                 conf_dir=None):
+                 conf_dir=None,
+                 notify_namespaces=['application']):
         self.config_server_url = config_server_url
         self.appId = app_id
         self.cluster = cluster
@@ -36,7 +37,10 @@ class ApolloClient(object):
         self.auto_failover = auto_failover
         self._stopping = False
         self._cache = {}
-        self._notification_map = {'application': -1}
+        self._notification_map = {}
+        # 支持注册指定的命名空间
+        for ns in notify_namespaces:
+            self._notification_map[ns] = -1
 
     def init_ip(self, ip):
         if ip:
