@@ -19,6 +19,7 @@ class ApolloClient(object):
                  timeout=65,
                  on_change=None,
                  ip=None,
+                 auto_failover=True,
                  conf_dir=None):
         self.config_server_url = config_server_url
         self.appId = app_id
@@ -32,7 +33,7 @@ class ApolloClient(object):
         self.conf_dir = conf_dir or os.getcwd()
         if not os.path.exists(self.conf_dir):
             os.makedirs(self.conf_dir)
-
+        self.auto_failover = auto_failover
         self._stopping = False
         self._cache = {}
         self._notification_map = {'application': -1}
@@ -82,14 +83,14 @@ class ApolloClient(object):
         value = self.get_value(
             'content',
             default_val=self._get_conf_from_disk(namespace)
-            if auto_failover else None,
+            if self.auto_failover and auto_failover else None,
             namespace=namespace,
             auto_fetch_on_cache_miss=True)
 
         if value is None:
             return None
 
-        if auto_failover:
+        if self.auto_failover and auto_failover:
             self._save_conf_to_disk(namespace, value)
 
         return self._loads(namespace, value)
@@ -218,7 +219,7 @@ class ApolloClient(object):
                 self._notification_map[ns] = nid
 
                 if self.on_change_cb is not None:
-                    self.on_change_cb(ns, self.get_conf_file(ns))
+                    self.on_change_cb(ns)
         else:
             raise Exception(
                 'apollo response error: code={}, content={}'.format(
