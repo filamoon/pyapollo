@@ -93,7 +93,7 @@ class ApolloClient(object):
         if self.auto_failover and auto_failover:
             self._save_conf_to_disk(namespace, value)
 
-        return self._loads(namespace, value)
+        return self._loads(namespace, value)    
 
     def _save_conf_to_disk(self, namespace, data):
         """ 本地磁盘容错 """
@@ -219,7 +219,7 @@ class ApolloClient(object):
                 self._notification_map[ns] = nid
 
                 if self.on_change_cb is not None:
-                    self.on_change_cb(ns)
+                    self.on_change_cb(ns, self.get_conf_file(namespace=ns))
         else:
             raise Exception(
                 'apollo response error: code={}, content={}'.format(
