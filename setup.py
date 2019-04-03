@@ -5,19 +5,22 @@ pyapollo 常用工具包
 
 """
 from setuptools import setup, find_packages
-import pyapollo
 
 SHORT=u'pyapollo'
+__version__ = '0.1.0'
+__author__ = 'filamoon'
+__email__ = 'filamoon@gmail.com'
 
 setup(
     name='pyapollo',
-    version=pyapollo.__version__,
+    version=__version__,
     packages=find_packages(),
     install_requires=[
-        'requests'
+        'requests==2.20.1',
+        'eventlet==0.24.1'
     ],
     url='https://code.aliyun.com/cashbusrisk/pyapollo',
-    author=pyapollo.__author__,
+    author=__author__,
     author_email='filamoon@gmail.com',
     classifiers=[
         'Programming Language :: Python',
