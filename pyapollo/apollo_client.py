@@ -9,7 +9,8 @@ import requests
 
 
 class ApolloClient(object):
-    def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None):
+    def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None,
+                 cycle_time=300):
         self.config_server_url = config_server_url
         self.appId = app_id
         self.cluster = cluster
@@ -20,6 +21,7 @@ class ApolloClient(object):
         self._stopping = False
         self._cache = {}
         self._notification_map = {'application': -1}
+        self._cycle_time = cycle_time
 
     def init_ip(self, ip):
         if ip:
@@ -80,7 +82,8 @@ class ApolloClient(object):
         logging.getLogger(__name__).info("Stopping listener...")
 
     def _cached_http_get(self, key, default_val, namespace='application'):
-        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
+        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace,
+                                                          self.ip)
         r = requests.get(url)
         if r.ok:
             data = r.json()
@@ -147,6 +150,7 @@ class ApolloClient(object):
         logging.getLogger(__name__).info('Entering listener loop...')
         while not self._stopping:
             self._long_poll()
+            time.sleep(self._cycle_time)
 
         logging.getLogger(__name__).info("Listener stopped!")
         self.stopped = True
