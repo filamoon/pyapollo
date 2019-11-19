@@ -120,31 +120,34 @@ class ApolloClient(object):
                 'namespaceName': key,
                 'notificationId': notification_id
             })
+        try:
+            r = requests.get(url=url, params={
+                'appId': self.appId,
+                'cluster': self.cluster,
+                'notifications': json.dumps(notifications, ensure_ascii=False)
+            }, timeout=self.timeout)
 
-        r = requests.get(url=url, params={
-            'appId': self.appId,
-            'cluster': self.cluster,
-            'notifications': json.dumps(notifications, ensure_ascii=False)
-        }, timeout=self.timeout)
+            logging.getLogger(__name__).debug('Long polling returns %d: url=%s', r.status_code, r.request.url)
 
-        logging.getLogger(__name__).debug('Long polling returns %d: url=%s', r.status_code, r.request.url)
+            if r.status_code == 304:
+                # no change, loop
+                logging.getLogger(__name__).debug('No change, loop...')
+                return
 
-        if r.status_code == 304:
-            # no change, loop
-            logging.getLogger(__name__).debug('No change, loop...')
-            return
+            if r.status_code == 200:
+                data = r.json()
+                for entry in data:
+                    ns = entry['namespaceName']
+                    nid = entry['notificationId']
+                    logging.getLogger(__name__).info("%s has changes: notificationId=%d", ns, nid)
+                    self._uncached_http_get(ns)
+                    self._notification_map[ns] = nid
+            else:
+                logging.getLogger(__name__).warn('Sleep...')
+                time.sleep(self.timeout)
 
-        if r.status_code == 200:
-            data = r.json()
-            for entry in data:
-                ns = entry['namespaceName']
-                nid = entry['notificationId']
-                logging.getLogger(__name__).info("%s has changes: notificationId=%d", ns, nid)
-                self._uncached_http_get(ns)
-                self._notification_map[ns] = nid
-        else:
-            logging.getLogger(__name__).warn('Sleep...')
-            time.sleep(self.timeout)
+        except requests.exceptions.ReadTimeout as e:
+            logging.getLogger(__name__).warning(str(e))
 
     def _listener(self):
         logging.getLogger(__name__).info('Entering listener loop...')
