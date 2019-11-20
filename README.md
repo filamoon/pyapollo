@@ -33,8 +33,8 @@ client.start()
   ```
 
 # Contribution
-  * Source Code: https://github.com/BruceWW/pyapollo
-  * Issue Tracker: https://github.com/BruceWW/pyapollo/issues
+  * Source Code: https://github.com/filamoon/pyapollo
+  * Issue Tracker: https://github.com/filamonn/pyapollo/issues
   
 # License
 The project is licensed under the [Apache 2 license](https://github.com/zouyx/agollo/blob/master/LICENSE).
