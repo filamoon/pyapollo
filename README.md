@@ -6,6 +6,8 @@ PyApollo - Python Client for Ctrip's Apollo
 方便Python接入配置中心框架 [Apollo](https://github.com/ctripcorp/apollo) 所开发的Python版本客户端。
 Tested with python 3
 
+基于https://github.com/filamoon/pyapollo修改
+
 Installation
 ------------
 
