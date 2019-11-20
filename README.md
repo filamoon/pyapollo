@@ -10,7 +10,7 @@ Installation
 ------------
 
 ``` shell
-python setup.py install
+pip install apollo-client
 ```
 
 # Features
