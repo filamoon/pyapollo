@@ -6,6 +6,8 @@ PyApollo - Python Client for Ctrip's Apollo
 方便Python接入配置中心框架 [Apollo](https://github.com/ctripcorp/apollo) 所开发的Python版本客户端。
 Tested with python 3
 
+基于https://github.com/filamoon/pyapollo修改
+
 Installation
 ------------
 
@@ -33,8 +35,8 @@ client.start()
   ```
 
 # Contribution
-  * Source Code: https://github.com/filamoon/pyapollo
-  * Issue Tracker: https://github.com/filamonn/pyapollo/issues
+  * Source Code: https://github.com/BruceWW/pyapollo
+  * Issue Tracker: https://github.com/BruceWW/pyapollo/issues
   
 # License
 The project is licensed under the [Apache 2 license](https://github.com/zouyx/agollo/blob/master/LICENSE).
