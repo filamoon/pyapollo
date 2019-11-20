@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+import hashlib
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -10,7 +12,7 @@ import requests
 
 class ApolloClient(object):
     def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None,
-                 cycle_time=300):
+                 cycle_time=300, cache_file_path=None):
         self.config_server_url = config_server_url
         self.appId = app_id
         self.cluster = cluster
@@ -22,6 +24,12 @@ class ApolloClient(object):
         self._cache = {}
         self._notification_map = {'application': -1}
         self._cycle_time = cycle_time
+        self._hash = dict()
+        if cache_file_path is None:
+            self._cache_file_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config')
+        else:
+            self._cache_file_path = cache_file_path
+        self._path_checker()
 
     def init_ip(self, ip):
         if ip:
@@ -84,32 +92,91 @@ class ApolloClient(object):
     def _cached_http_get(self, key, default_val, namespace='application'):
         url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace,
                                                           self.ip)
-        r = requests.get(url)
-        if r.ok:
-            data = r.json()
-            self._cache[namespace] = data
-            logging.getLogger(__name__).info('Updated local cache for namespace %s', namespace)
-        else:
-            data = self._cache[namespace]
-
-        if key in data:
-            return data[key]
-        else:
-            return default_val
+        data = dict()
+        try:
+            r = requests.get(url)
+            if r.ok:
+                data = r.json()
+                self._cache[namespace] = data
+                logging.getLogger(__name__).info('Updated local cache for namespace %s', namespace)
+                self._update_local_cache(data, namespace)
+            else:
+                if self._cache[namespace] is None or len(self._cache[namespace]) == 0:
+                    logging.getLogger(__name__).info('cached http get configuration from local cache file')
+                    data = self._get_local_cache(namespace)
+                else:
+                    data = self._cache[namespace]
+        except BaseException as e:
+            logging.getLogger(__name__).warning(str(e))
+            data = self._get_local_cache(namespace)
+        finally:
+            if key in data:
+                return data[key]
+            else:
+                return default_val
 
     def _uncached_http_get(self, namespace='application'):
         url = '{}/configs/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
-        r = requests.get(url)
-        if r.status_code == 200:
-            data = r.json()
-            self._cache[namespace] = data['configurations']
-            logging.getLogger(__name__).info('Updated local cache for namespace %s release key %s: %s',
+        try:
+            r = requests.get(url)
+            if r.status_code == 200:
+                data = r.json()
+                self._cache[namespace] = data['configurations']
+                logging.getLogger(__name__).info('Updated local cache for namespace %s release key %s: %s',
                                              namespace, data['releaseKey'],
                                              repr(self._cache[namespace]))
+                self._update_local_cache(data, namespace)
+            else:
+                data = self._get_local_cache(namespace)
+                logging.getLogger(__name__).info('uncached http get configuration from local cache file')
+                self._cache[namespace] = data['configurations']
+        except BaseException as e:
+            logging.getLogger(__name__).warning(str(e))
+            data = self._get_local_cache(namespace)
+            self._cache[namespace] = data['configurations']
 
     def _signal_handler(self, signal, frame):
         logging.getLogger(__name__).info('You pressed Ctrl+C!')
         self._stopping = True
+
+    def _path_checker(self):
+        """
+        create configuration cache file directory if not exits
+        :return:
+        """
+        if not os.path.isdir(self._cache_file_path):
+            os.mkdir(self._cache_file_path)
+
+    def _update_local_cache(self, data, namespace='application'):
+        """
+        if local cache file exits, update the content
+        if local cache file not exits, create a version
+        :param data: new configuration content
+        :param namespace::s
+        :return:
+        """
+        new_string = json.dumps(data)
+        new_hash = hashlib.md5(new_string.encode('utf-8')).hexdigest()
+        if self._hash[namespace] == new_hash:
+            pass
+        else:
+            with open(os.path.join(self._cache_file_path, 'configuration_%s.txt' % namespace), 'w') as f:
+                f.write(new_string)
+            self._hash[namespace] = new_hash
+
+    def _get_local_cache(self, namespace='application'):
+        """
+        get configuration from local cache file
+        if local cache file not exits than return empty dict
+        :param namespace:
+        :return:
+        """
+        cache_file_path = os.path.join(self._cache_file_path, 'configuration_%s.txt' % namespace)
+        if os.path.isfile(cache_file_path):
+            with open(cache_file_path, 'r') as f:
+                result = json.loads(f.readline())
+            return result
+        return dict()
 
     def _long_poll(self):
         url = '{}/notifications/v2'.format(self.config_server_url)
@@ -142,12 +209,31 @@ class ApolloClient(object):
                     logging.getLogger(__name__).info("%s has changes: notificationId=%d", ns, nid)
                     self._uncached_http_get(ns)
                     self._notification_map[ns] = nid
+                    return
             else:
-                logging.getLogger(__name__).warn('Sleep...')
+                logging.getLogger(__name__).warning('Sleep...')
                 time.sleep(self.timeout)
-
+                return
         except requests.exceptions.ReadTimeout as e:
             logging.getLogger(__name__).warning(str(e))
+        except requests.exceptions.ConnectionError as e:
+            logging.getLogger(__name__).warning(str(e))
+            self._load_local_cache_file()
+
+    def _load_local_cache_file(self):
+        """
+        load all cached files from local path
+        is only used while apollo server is unreachable
+        :return:
+        """
+        for file in os.listdir(self._cache_file_path):
+            file_path = os.path.join(self._cache_file_path, file)
+            if os.path.isfile(file_path):
+                namespace = file.split('.')[0].split('_')[1]
+                with open(file_path) as f:
+                    self._cache[namespace] = json.loads(f.read())['configurations']
+        return True
+
 
     def _listener(self):
         logging.getLogger(__name__).info('Entering listener loop...')
