@@ -13,6 +13,16 @@ import requests
 class ApolloClient(object):
     def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None,
                  cycle_time=300, cache_file_path=None):
+        """
+
+        :param app_id:
+        :param cluster:
+        :param config_server_url:
+        :param timeout:
+        :param ip:
+        :param cycle_time: the cycle time to update configuration content from server
+        :param cache_file_path: local cache file store path
+        """
         self.config_server_url = config_server_url
         self.appId = app_id
         self.cluster = cluster
@@ -157,7 +167,7 @@ class ApolloClient(object):
         """
         new_string = json.dumps(data)
         new_hash = hashlib.md5(new_string.encode('utf-8')).hexdigest()
-        if self._hash[namespace] == new_hash:
+        if self._hash.get(namespace) == new_hash:
             pass
         else:
             with open(os.path.join(self._cache_file_path, 'configuration_%s.txt' % namespace), 'w') as f:
@@ -233,7 +243,6 @@ class ApolloClient(object):
                 with open(file_path) as f:
                     self._cache[namespace] = json.loads(f.read())['configurations']
         return True
-
 
     def _listener(self):
         logging.getLogger(__name__).info('Entering listener loop...')
