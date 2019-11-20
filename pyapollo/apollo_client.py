@@ -1,17 +1,28 @@
+# !/usr/bin/env python
 # -*- coding: utf-8 -*-
+# @Time    : 2019
+# @Author  : Bruce Liu
+# @Email   : 15869300264@163.com
+# @File    : apollo_client
 import hashlib
 import json
 import logging
 import os
-import sys
 import threading
 import time
 
 import requests
 
+"""
+this module is modified from the project: https://github.com/filamoon/pyapollo
+and had commit the merge request to the original repo
+thanks for the contributors
+since the contributors had stopped to commit code to the original repo, please submit issue or commit to https://github.com/BruceWW/pyapollo
+"""
+
 
 class ApolloClient(object):
-    def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=35, ip=None,
+    def __init__(self, app_id, cluster='default', config_server_url='http://localhost:8080', timeout=60, ip=None,
                  cycle_time=300, cache_file_path=None):
         """
 
@@ -19,16 +30,16 @@ class ApolloClient(object):
         :param cluster:
         :param config_server_url:
         :param timeout:
-        :param ip:
+        :param ip: the deploy ip for grey release
         :param cycle_time: the cycle time to update configuration content from server
         :param cache_file_path: local cache file store path
         """
         self.config_server_url = config_server_url
-        self.appId = app_id
+        self.app_id = app_id
         self.cluster = cluster
         self.timeout = timeout
         self.stopped = False
-        self.init_ip(ip)
+        self.ip = self.init_ip(ip)
 
         self._stopping = False
         self._cache = {}
@@ -41,10 +52,14 @@ class ApolloClient(object):
             self._cache_file_path = cache_file_path
         self._path_checker()
 
-    def init_ip(self, ip):
-        if ip:
-            self.ip = ip
-        else:
+    @staticmethod
+    def init_ip(ip):
+        """
+        for grey release
+        :param ip:
+        :return:
+        """
+        if ip is None:
             import socket
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -52,10 +67,17 @@ class ApolloClient(object):
                 ip = s.getsockname()[0]
             finally:
                 s.close()
-            self.ip = ip
+        return ip
 
-    # Main method
     def get_value(self, key, default_val=None, namespace='application', auto_fetch_on_cache_miss=False):
+        """
+        get the configuration value
+        :param key:
+        :param default_val:
+        :param namespace:
+        :param auto_fetch_on_cache_miss:
+        :return:
+        """
         if namespace not in self._notification_map:
             self._notification_map[namespace] = -1
             logging.getLogger(__name__).info("Add namespace '%s' to local notification map", namespace)
@@ -74,16 +96,22 @@ class ApolloClient(object):
             else:
                 return default_val
 
-    # Start the long polling loop. Two modes are provided:
-    # 1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop
-    # 2: eventlet mode (recommended), no need to call the .stop() since it is async
-    def start(self, use_eventlet=False, eventlet_monkey_patch=False, catch_signals=True):
-        # First do a blocking long poll to populate the local cache, otherwise we may get racing problems
+    def start(self, use_event_let=False, event_let_monkey_patch=False, catch_signals=True):
+        """
+        Start the long polling loop. Two modes are provided:
+        1: thread mode (default), create a worker thread to do the loop. Call self.stop() to quit the loop
+        2: event_let mode (recommended), no need to call the .stop() since it is async
+        First do a blocking long poll to populate the local cache, otherwise we may get racing problems
+        :param use_event_let:
+        :param event_let_monkey_patch:
+        :param catch_signals:
+        :return:
+        """
         if len(self._cache) == 0:
             self._long_poll()
-        if use_eventlet:
+        if use_event_let:
             import eventlet
-            if eventlet_monkey_patch:
+            if event_let_monkey_patch:
                 eventlet.monkey_patch()
             eventlet.spawn(self._listener)
         else:
@@ -96,11 +124,22 @@ class ApolloClient(object):
             t.start()
 
     def stop(self):
+        """
+        stop the client
+        :return:
+        """
         self._stopping = True
         logging.getLogger(__name__).info("Stopping listener...")
 
     def _cached_http_get(self, key, default_val, namespace='application'):
-        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace,
+        """
+        get the configuration content from server with cache
+        :param key:
+        :param default_val:
+        :param namespace:
+        :return:
+        """
+        url = '{}/configfiles/json/{}/{}/{}?ip={}'.format(self.config_server_url, self.app_id, self.cluster, namespace,
                                                           self.ip)
         data = dict()
         try:
@@ -126,15 +165,20 @@ class ApolloClient(object):
                 return default_val
 
     def _uncached_http_get(self, namespace='application'):
-        url = '{}/configs/{}/{}/{}?ip={}'.format(self.config_server_url, self.appId, self.cluster, namespace, self.ip)
+        """
+        get thr configuration content from server without cache
+        :param namespace:
+        :return:
+        """
+        url = '{}/configs/{}/{}/{}?ip={}'.format(self.config_server_url, self.app_id, self.cluster, namespace, self.ip)
         try:
             r = requests.get(url)
             if r.status_code == 200:
                 data = r.json()
                 self._cache[namespace] = data['configurations']
                 logging.getLogger(__name__).info('Updated local cache for namespace %s release key %s: %s',
-                                             namespace, data['releaseKey'],
-                                             repr(self._cache[namespace]))
+                                                 namespace, data['releaseKey'],
+                                                 repr(self._cache[namespace]))
                 self._update_local_cache(data, namespace)
             else:
                 data = self._get_local_cache(namespace)
@@ -145,7 +189,7 @@ class ApolloClient(object):
             data = self._get_local_cache(namespace)
             self._cache[namespace] = data['configurations']
 
-    def _signal_handler(self, signal, frame):
+    def _signal_handler(self):
         logging.getLogger(__name__).info('You pressed Ctrl+C!')
         self._stopping = True
 
@@ -199,7 +243,7 @@ class ApolloClient(object):
             })
         try:
             r = requests.get(url=url, params={
-                'appId': self.appId,
+                'appId': self.app_id,
                 'cluster': self.cluster,
                 'notifications': json.dumps(notifications, ensure_ascii=False)
             }, timeout=self.timeout)
@@ -245,6 +289,10 @@ class ApolloClient(object):
         return True
 
     def _listener(self):
+        """
+        
+        :return:
+        """
         logging.getLogger(__name__).info('Entering listener loop...')
         while not self._stopping:
             self._long_poll()
@@ -252,25 +300,3 @@ class ApolloClient(object):
 
         logging.getLogger(__name__).info("Listener stopped!")
         self.stopped = True
-
-
-if __name__ == '__main__':
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    root.addHandler(ch)
-
-    client = ApolloClient('pycrawler')
-    client.start()
-    if sys.version_info[0] < 3:
-        v = raw_input('Press any key to quit...')
-    else:
-        v = input('Press any key to quit...')
-
-    client.stop()
-    while not client.stopped:
-        pass
