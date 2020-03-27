@@ -73,6 +73,7 @@ class ApolloClient(object):
                 signal.signal(signal.SIGTERM, self._signal_handler)
                 signal.signal(signal.SIGABRT, self._signal_handler)
             t = threading.Thread(target=self._listener)
+            t.setDaemon(True)
             t.start()
 
     def stop(self):
